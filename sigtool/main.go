@@ -52,6 +52,25 @@ func main() {
 		cancel()
 	}()
 
+	if fdStr := os.Getenv("TERMUX_USB_FD"); fdStr != "" {
+		fd, err := strconv.Atoi(fdStr)
+		if err != nil {
+			logrus.WithError(err).Fatal("invalid TERMUX_USB_FD")
+		}
+		f := os.NewFile(uintptr(fd), "roomba")
+		defer f.Close()
+
+		// OI起動・Safeモード
+		if _, err := f.Write([]byte{128, 131}); err != nil {
+			logrus.WithError(err).Fatal("OI init failed")
+		}
+
+		if err := Badapple(f, func(s string) { logrus.Info(s) }); err != nil {
+			logrus.WithError(err).Fatal("badapple error")
+		}
+		return
+	}
+
 	go func() {
 		for {
 			var PortName string
@@ -62,6 +81,9 @@ func main() {
 				switch mode {
 				case "auto", "a":
 					ui.Log("Loading COM ports...")
+
+					ui.Log(fmt.Sprintf("TERMUX_USB_FD=%s", os.Getenv("TERMUX_USB_FD")))
+					ui.Log(fmt.Sprintf("TERMUX_USB_DEV=%s", os.Getenv("TERMUX_USB_DEV")))
 
 					results, err := getPort()
 					if err != nil {
