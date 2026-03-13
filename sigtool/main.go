@@ -36,21 +36,6 @@ func Init() {
 
 func main() {
 	Init()
-	ui := NewLogUI()
-
-	signalCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopSignal()
-
-	ctx, cancel := context.WithCancel(signalCtx)
-	defer cancel()
-
-	go func() {
-		if err := ui.Run(); err != nil {
-			logrus.WithError(err).Error("UI error")
-		}
-		// Ctrl+CでUIが止まった場合でも確実に全体を終了させる。
-		cancel()
-	}()
 
 	if fdStr := os.Getenv("TERMUX_USB_FD"); fdStr != "" {
 		fd, err := strconv.Atoi(fdStr)
@@ -70,6 +55,22 @@ func main() {
 		}
 		return
 	}
+
+	ui := NewLogUI()
+
+	signalCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignal()
+
+	ctx, cancel := context.WithCancel(signalCtx)
+	defer cancel()
+
+	go func() {
+		if err := ui.Run(); err != nil {
+			logrus.WithError(err).Error("UI error")
+		}
+		// Ctrl+CでUIが止まった場合でも確実に全体を終了させる。
+		cancel()
+	}()
 
 	go func() {
 		for {
