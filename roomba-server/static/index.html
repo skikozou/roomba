@@ -313,11 +313,16 @@ function connect() {
 const MAX_SPEED   = 300;  // mm/s
 const CURVE_RATIO = 0.25;
 const TICK_MS     = 50;
-const ACCEL_MS    = 300;
-const DECEL_MS    = 200;
+const DECEL_MS    = 250;
 
-const ACCEL_STEP = MAX_SPEED / (ACCEL_MS / TICK_MS);
 const DECEL_STEP = MAX_SPEED / (DECEL_MS / TICK_MS);
+
+// 加速イージング：差の ACCEL_EASE 割合ずつ縮める（最初速く、MAX付近で緩やか）
+// 例: 差300→210→147→103→...と指数的に接近
+const ACCEL_EASE = 0.35;
+
+// 加速が実質止まるしきい値（ここからは線形で詰める）
+const ACCEL_SNAP = 5; // mm/s
 
 // コマンドごとのtarget速度ベクトル（MAX_SPEED基準）
 const CMD_VECS = {
@@ -337,7 +342,16 @@ let currentLeft  = 0;
 let currentCmd   = null;
 let loopTimer    = null;
 
-function moveToward(current, target, step) {
+// 加速：指数イージング（最初速く終盤緩やか）
+function accelToward(current, target) {
+  if (current === target) return target;
+  const diff = target - current;
+  if (Math.abs(diff) < ACCEL_SNAP) return target; // snapして完了
+  return current + diff * ACCEL_EASE;
+}
+
+// 減速：線形
+function decelToward(current, target, step) {
   if (current < target) return Math.min(current + step, target);
   if (current > target) return Math.max(current - step, target);
   return current;
@@ -361,10 +375,15 @@ function startLoop() {
       targetLeft  = l * MAX_SPEED;
     }
 
-    // 各輪を独立してtargetに近づける（方向転換時も急発進しない）
-    const step = currentCmd ? ACCEL_STEP : DECEL_STEP;
-    currentRight = moveToward(currentRight, targetRight, step);
-    currentLeft  = moveToward(currentLeft,  targetLeft,  step);
+    if (currentCmd) {
+      // 加速：指数イージング（方向転換も0を経由して滑らか）
+      currentRight = accelToward(currentRight, targetRight);
+      currentLeft  = accelToward(currentLeft,  targetLeft);
+    } else {
+      // 減速：線形
+      currentRight = decelToward(currentRight, 0, DECEL_STEP);
+      currentLeft  = decelToward(currentLeft,  0, DECEL_STEP);
+    }
 
     send(driveDirect(currentRight, currentLeft));
 
@@ -463,4 +482,3 @@ connect();
 </script>
 </body>
 </html>
-
