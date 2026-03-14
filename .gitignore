@@ -6,3 +6,4 @@ ctrlpanel/roomba
 ctrlpanel/ctrlpanel
 
 roomba-server/roomba-server
+roomba-server/ptyserial.log
