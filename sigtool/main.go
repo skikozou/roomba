@@ -34,22 +34,27 @@ func Init() {
 	})
 }
 
+func getTermuxUSBFd() *os.File {
+	if len(os.Args) < 2 {
+		return nil
+	}
+	fdStr := os.Args[len(os.Args)-1]
+	fd, err := strconv.Atoi(fdStr)
+	if err != nil || fd < 0 {
+		return nil
+	}
+	return os.NewFile(uintptr(fd), "roomba")
+}
+
 func main() {
 	Init()
 
-	if fdStr := os.Getenv("TERMUX_USB_FD"); fdStr != "" {
-		fd, err := strconv.Atoi(fdStr)
-		if err != nil {
-			logrus.WithError(err).Fatal("invalid TERMUX_USB_FD")
-		}
-		f := os.NewFile(uintptr(fd), "roomba")
+	if f := getTermuxUSBFd(); f != nil {
 		defer f.Close()
-
-		// OI起動・Safeモード
+		logrus.Infof("USB fd=%d", f.Fd())
 		if _, err := f.Write([]byte{128, 131}); err != nil {
 			logrus.WithError(err).Fatal("OI init failed")
 		}
-
 		if err := Badapple(f, func(s string) { logrus.Info(s) }); err != nil {
 			logrus.WithError(err).Fatal("badapple error")
 		}

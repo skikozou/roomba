@@ -19,6 +19,17 @@ func getPort() (*[]SerialPortInfo, error) {
 	ports := make([]SerialPortInfo, 0, 8)
 	seen := make(map[string]struct{})
 
+	if pty := os.Getenv("ROOMBA_PTY"); pty != "" {
+		ports = append(ports, SerialPortInfo{
+			Status:      "OK",
+			Name:        pty,
+			DeviceID:    pty,
+			Description: "Termux PTY bridge",
+			Caption:     "Termux PTY bridge",
+		})
+		return &ports, nil
+	}
+
 	add := func(deviceID, name, description string) {
 		if deviceID == "" {
 			return
