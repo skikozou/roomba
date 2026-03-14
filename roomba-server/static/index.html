@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Roomba</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: #12121a;
+    --border: #1e1e2e;
+    --accent: #00e5ff;
+    --accent2: #ff3d71;
+    --dim: #2a2a3a;
+    --text: #c8c8d8;
+    --btn-bg: #161620;
+    --btn-active: #00e5ff22;
+    --btn-border: #2a2a40;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .statusbar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--text);
+    opacity: 0.7;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent2);
+    display: inline-block;
+    margin-right: 6px;
+    transition: background 0.3s;
+  }
+  .status-dot.connected { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  .speed-bar-wrap {
+    width: min(360px, 94vw);
+    height: 3px;
+    background: var(--dim);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .speed-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: background 0.1s;
+  }
+  .speed-bar.braking { background: var(--accent2); }
+
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 8px;
+    width: min(360px, 94vw);
+    aspect-ratio: 1;
+  }
+
+  .btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, transform 0.08s;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .btn.active {
+    background: var(--btn-active);
+    border-color: var(--accent);
+    transform: scale(0.95);
+  }
+
+  .btn svg {
+    width: 28px;
+    height: 28px;
+    stroke: var(--text);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.1s;
+  }
+
+  .btn.active svg { stroke: var(--accent); }
+
+  .btn.stop { border-color: var(--dim); }
+  .btn.stop svg { stroke: var(--accent2); }
+  .btn.stop.active {
+    background: #ff3d7122;
+    border-color: var(--accent2);
+  }
+
+  .subcontrols {
+    display: flex;
+    gap: 10px;
+    width: min(360px, 94vw);
+  }
+
+  .subbtn {
+    flex: 1;
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: 10px;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    opacity: 0.7;
+    transition: all 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .subbtn:active {
+    background: var(--btn-active);
+    border-color: var(--accent);
+    opacity: 1;
+    transform: scale(0.97);
+  }
+
+  .subbtn svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  .log {
+    width: min(360px, 94vw);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    opacity: 0.4;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.07) 2px,
+      rgba(0,0,0,0.07) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<div class="statusbar">
+  <div><span class="status-dot" id="dot"></span><span id="status-text">DISCONNECTED</span></div>
+  <div>ROOMBA CTRL</div>
+</div>
+
+<div class="speed-bar-wrap">
+  <div class="speed-bar" id="speed-bar"></div>
+</div>
+
+<div class="pad">
+  <div class="btn" id="btn-forward_left">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="18" x2="6" y2="6"/><polyline points="6,6 6,14"/><polyline points="6,6 14,6"/></svg>
+  </div>
+  <div class="btn" id="btn-forward">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5,12 12,5 19,12"/></svg>
+  </div>
+  <div class="btn" id="btn-forward_right">
+    <svg viewBox="0 0 24 24"><line x1="6" y1="18" x2="18" y2="6"/><polyline points="18,6 18,14"/><polyline points="18,6 10,6"/></svg>
+  </div>
+  <div class="btn" id="btn-left">
+    <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,5 5,12 12,19"/></svg>
+  </div>
+  <div class="btn stop" id="btn-stop">
+    <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+  </div>
+  <div class="btn" id="btn-right">
+    <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/></svg>
+  </div>
+  <div class="btn" id="btn-backward_left">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><polyline points="6,18 6,10"/><polyline points="6,18 14,18"/></svg>
+  </div>
+  <div class="btn" id="btn-backward">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5,12 12,19 19,12"/></svg>
+  </div>
+  <div class="btn" id="btn-backward_right">
+    <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><polyline points="18,18 18,10"/><polyline points="18,18 10,18"/></svg>
+  </div>
+</div>
+
+<div class="subcontrols">
+  <div class="subbtn" id="mode-btn">
+    <svg id="mode-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <span id="mode-label">SAFE</span>
+  </div>
+</div>
+
+<div class="log" id="log">---</div>
+
+<script>
+// ── OI コマンド生成 ──────────────────────────────────
+const OI_START       = 128;
+const OI_SAFE        = 131;
+const OI_FULL        = 132;
+const OI_DRIVEDIRECT = 145;
+
+function int16Bytes(v) {
+  v = Math.max(-32768, Math.min(32767, Math.round(v)));
+  return [(v >> 8) & 0xff, v & 0xff];
+}
+
+function driveDirect(right, left) {
+  const [rh, rl] = int16Bytes(right);
+  const [lh, ll] = int16Bytes(left);
+  return new Uint8Array([OI_DRIVEDIRECT, rh, rl, lh, ll]);
+}
+
+function oiCmd(opcode) {
+  return new Uint8Array([opcode]);
+}
+
+// ── WebSocket ────────────────────────────────────────
+const dot        = document.getElementById('dot');
+const statusText = document.getElementById('status-text');
+const logEl      = document.getElementById('log');
+const speedBar   = document.getElementById('speed-bar');
+
+let ws = null;
+let reconnectTimer = null;
+
+function setLog(msg) { logEl.textContent = msg; }
+
+function send(bytes) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(bytes);
+  }
+}
+
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = () => {
+    dot.classList.add('connected');
+    statusText.textContent = 'CONNECTED';
+    setLog('connection established');
+    clearTimeout(reconnectTimer);
+    send(oiCmd(OI_START));
+    setTimeout(() => send(oiCmd(OI_SAFE)), 100);
+  };
+
+  ws.onclose = () => {
+    dot.classList.remove('connected');
+    statusText.textContent = 'DISCONNECTED';
+    setLog('reconnecting...');
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+// ── 速度・慣性制御 ───────────────────────────────────
+const MAX_SPEED   = 300;  // mm/s
+const CURVE_RATIO = 0.25;
+const TICK_MS     = 50;
+const ACCEL_MS    = 300;
+const DECEL_MS    = 200;
+
+const ACCEL_STEP = MAX_SPEED / (ACCEL_MS / TICK_MS);
+const DECEL_STEP = MAX_SPEED / (DECEL_MS / TICK_MS);
+
+// コマンドごとのtarget速度ベクトル（MAX_SPEED基準）
+const CMD_VECS = {
+  forward:        [ 1,           1          ],
+  backward:       [-1,          -1          ],
+  left:           [ 1,          -1          ],
+  right:          [-1,           1          ],
+  forward_left:   [ 1,           CURVE_RATIO],
+  forward_right:  [ CURVE_RATIO, 1          ],
+  backward_left:  [-1,          -CURVE_RATIO],
+  backward_right: [-CURVE_RATIO,-1          ],
+};
+
+// 現在の各輪の実速度
+let currentRight = 0;
+let currentLeft  = 0;
+let currentCmd   = null;
+let loopTimer    = null;
+
+function moveToward(current, target, step) {
+  if (current < target) return Math.min(current + step, target);
+  if (current > target) return Math.max(current - step, target);
+  return current;
+}
+
+function updateSpeedBar(right, left, braking) {
+  const scale = Math.max(Math.abs(right), Math.abs(left)) / MAX_SPEED;
+  speedBar.style.width = `${scale * 100}%`;
+  speedBar.classList.toggle('braking', braking);
+}
+
+function startLoop() {
+  if (loopTimer) return;
+  loopTimer = setInterval(() => {
+    let targetRight = 0;
+    let targetLeft  = 0;
+
+    if (currentCmd) {
+      const [r, l] = CMD_VECS[currentCmd];
+      targetRight = r * MAX_SPEED;
+      targetLeft  = l * MAX_SPEED;
+    }
+
+    // 各輪を独立してtargetに近づける（方向転換時も急発進しない）
+    const step = currentCmd ? ACCEL_STEP : DECEL_STEP;
+    currentRight = moveToward(currentRight, targetRight, step);
+    currentLeft  = moveToward(currentLeft,  targetLeft,  step);
+
+    send(driveDirect(currentRight, currentLeft));
+
+    const braking = !currentCmd && (currentRight !== 0 || currentLeft !== 0);
+    updateSpeedBar(currentRight, currentLeft, braking);
+
+    if (!currentCmd && currentRight === 0 && currentLeft === 0) {
+      clearInterval(loopTimer);
+      loopTimer = null;
+      updateSpeedBar(0, 0, false);
+      setLog('stop');
+    } else {
+      const spd = Math.round(Math.max(Math.abs(currentRight), Math.abs(currentLeft)));
+      setLog(`${currentCmd || 'braking'} ${spd}mm/s`);
+    }
+  }, TICK_MS);
+}
+
+function pressCmd(cmd) {
+  currentCmd = cmd;
+  startLoop();
+}
+
+function releaseCmd() {
+  currentCmd = null;
+  // loopが動いていなければ即停止（速度0のまま離した場合）
+  if (!loopTimer) {
+    send(driveDirect(0, 0));
+  }
+}
+
+// ── ボタンイベント ───────────────────────────────────
+Object.keys(CMD_VECS).forEach(cmd => {
+  const btn = document.getElementById(`btn-${cmd}`);
+  if (!btn) return;
+
+  const onStart = (e) => { e.preventDefault(); btn.classList.add('active');    pressCmd(cmd); };
+  const onEnd   = (e) => { e.preventDefault(); btn.classList.remove('active'); releaseCmd();  };
+
+  btn.addEventListener('touchstart',  onStart, { passive: false });
+  btn.addEventListener('touchend',    onEnd,   { passive: false });
+  btn.addEventListener('touchcancel', onEnd,   { passive: false });
+  btn.addEventListener('mousedown',   onStart);
+  btn.addEventListener('mouseup',     onEnd);
+  btn.addEventListener('mouseleave',  onEnd);
+});
+
+// 停止ボタン（即停止）
+const stopBtn = document.getElementById('btn-stop');
+function hardStop(e) {
+  if (e) e.preventDefault();
+  currentCmd = null;
+  currentRight = 0;
+  currentLeft  = 0;
+  clearInterval(loopTimer);
+  loopTimer = null;
+  send(driveDirect(0, 0));
+  updateSpeedBar(0, 0, false);
+  setLog('stop');
+}
+stopBtn.addEventListener('touchstart', (e) => { hardStop(e); stopBtn.classList.add('active');    }, { passive: false });
+stopBtn.addEventListener('touchend',   (e) => { e.preventDefault(); stopBtn.classList.remove('active'); }, { passive: false });
+stopBtn.addEventListener('mousedown',  (e) => { hardStop(e); stopBtn.classList.add('active');    });
+stopBtn.addEventListener('mouseup',    ()  => stopBtn.classList.remove('active'));
+
+// Safe/Full トグル
+let isSafe = true;
+const modeBtn   = document.getElementById('mode-btn');
+const modeLabel = document.getElementById('mode-label');
+const modeIcon  = document.getElementById('mode-icon');
+
+function updateModeUI() {
+  if (isSafe) {
+    modeLabel.textContent = 'SAFE';
+    modeIcon.innerHTML = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>';
+    modeBtn.style.borderColor = '';
+  } else {
+    modeLabel.textContent = 'FULL';
+    modeIcon.innerHTML = '<circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>';
+    modeBtn.style.borderColor = 'var(--accent2)';
+  }
+}
+
+function toggleMode(e) {
+  if (e) e.preventDefault();
+  isSafe = !isSafe;
+  updateModeUI();
+  send(oiCmd(isSafe ? OI_SAFE : OI_FULL));
+  setLog(isSafe ? 'mode: safe' : 'mode: full');
+}
+
+modeBtn.addEventListener('touchstart', toggleMode, { passive: false });
+modeBtn.addEventListener('click',      () => toggleMode(null));
+
+connect();
+</script>
+</body>
+</html>
+
