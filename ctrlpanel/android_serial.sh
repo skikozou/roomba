@@ -13,6 +13,9 @@ echo "Requesting USB permission..."
 termux-usb -r "$USB_DEV"
 sleep 1
 
+pkill -f ptyserial 2>/dev/null
+sleep 0.5
+
 # ptyserialをバックグラウンドで起動
 termux-usb -e "env LD_LIBRARY_PATH=$TTYDIR/bin $TTYDIR/ptyserial 115200" "$USB_DEV" 2>./ptyserial.log &
 PTYSERIAL_PID=$!
@@ -35,7 +38,7 @@ echo "PTY: $PTY"
 
 # GoアプリにPTYパスを渡して起動
 go build -o roomba .
-ROOMBA_PTY="$PTY" ./roomba
+./roomba "$PTY" --sound ../apple
 
 # 終了時にptyserialも止める
 kill $PTYSERIAL_PID
