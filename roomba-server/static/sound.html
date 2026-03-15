@@ -637,64 +637,77 @@ async function playSong() {
   const chunks = [];
   for (let i = 0; i < seq.length; i += 16) chunks.push(seq.slice(i, i + 16));
 
+  // 各チャンクの開始時刻（ms）を事前計算
+  const chunkStartMs = [0];
+  for (let i = 0; i < chunks.length; i++) {
+    const ms = chunks[i].reduce((s, n) => s + n.dur, 0) / 64 * 1000;
+    chunkStartMs.push((chunkStartMs[i] || 0) + ms);
+  }
+  const totalMs = chunkStartMs[chunks.length];
+
   isPlaying = true;
   playBtn.classList.add('playing'); playBtn.textContent = 'STOP'; playBtn.disabled = false;
   progressBar.classList.add('playing');
 
-  let elapsed = 0;
-  const STEP_MS = 50;
-  const PREFETCH_MS = 200; // 残り時間がこれ以下になったら次チャンクを先読み定義
+  // 先読みバッファ：次チャンクをこの時間前に定義する（ms）
+  const PREFETCH_MS = 300;
+  const POLL_MS     = 20; // ポーリング間隔
 
-  // 最初のチャンクを定義してすぐ再生
-  if (chunks.length > 0) {
-    send(buildSongCmd(0, chunks[0]));
-    await sleep(10);
-    send(new Uint8Array([141, 0]));
-  }
+  // 全チャンクを最初にスケジュール（Song定義は事前に全部送る）
+  // ただし4スロットしかないため、再生中に順次上書き定義する
 
-  for (let i = 0; i < chunks.length; i++) {
+  const startTime = performance.now();
+
+  // 最初のチャンクを定義→再生
+  send(buildSongCmd(0, chunks[0]));
+  await sleep(15);
+  if (!isPlaying) return stopPlay();
+  send(new Uint8Array([141, 0]));
+
+  let nextDefine = 1;  // 次に定義すべきチャンクindex
+  let nextPlay   = 1;  // 次に再生コマンドを送るべきチャンクindex
+
+  // アニメーションループ
+  while (isPlaying) {
+    await sleep(POLL_MS);
     if (!isPlaying) break;
-    const chunkTicks = chunks[i].reduce((s, n) => s + n.dur, 0);
-    const chunkMs    = (chunkTicks / 64) * 1000;
-    const steps      = Math.ceil(chunkMs / STEP_MS);
-    let prefetched   = false;
 
-    for (let s = 0; s < steps; s++) {
-      if (!isPlaying) break;
-      await sleep(STEP_MS);
-      elapsed += (STEP_MS / 1000) * 64;
-      playheadTick = elapsed;
-      progressBar.style.width = `${Math.min(elapsed / total, 1) * 100}%`;
-      drawGrid();
-      // 再生ヘッドに追従
-      const headX = tickToX(playheadTick);
-      const vw = gridScroll.clientWidth;
-      if (headX - scrollX > vw * 0.8) {
-        scrollX = headX - vw * 0.2;
-        applyScroll();
-      }
-      // 残り時間がPREFETCH_MS以下になったら次チャンクを先読み定義
-      if (!prefetched && i + 1 < chunks.length) {
-        const remaining = (steps - s - 1) * STEP_MS;
-        if (remaining <= PREFETCH_MS) {
-          prefetched = true;
-          const nextSlot = (i + 1) % 4;
-          send(buildSongCmd(nextSlot, chunks[i + 1]));
-        }
-      }
+    const now     = performance.now();
+    const elapsed = now - startTime; // ms
+
+    // プログレス更新
+    playheadTick = (elapsed / 1000) * 64;
+    progressBar.style.width = `${Math.min(elapsed / totalMs, 1) * 100}%`;
+    drawGrid();
+    const headX = tickToX(playheadTick);
+    const vw = gridScroll.clientWidth;
+    if (headX - scrollX > vw * 0.8) {
+      scrollX = headX - vw * 0.2;
+      applyScroll();
     }
 
-    // 次チャンクを再生（定義済みのスロット）
-    if (isPlaying && i + 1 < chunks.length) {
-      const nextSlot = (i + 1) % 4;
-      if (!prefetched) {
-        // 先読みできなかった場合は今定義してすぐ再生
-        send(buildSongCmd(nextSlot, chunks[i + 1]));
-        await sleep(10);
-      }
-      send(new Uint8Array([141, nextSlot]));
+    // 次のチャンクを先読み定義（再生開始PREFETCH_MS前）
+    while (nextDefine < chunks.length) {
+      const defineAt = chunkStartMs[nextDefine] - PREFETCH_MS;
+      if (elapsed < defineAt) break;
+      const slot = nextDefine % 4;
+      send(buildSongCmd(slot, chunks[nextDefine]));
+      nextDefine++;
     }
+
+    // 次のチャンクの再生コマンドを送る（開始時刻になったら）
+    while (nextPlay < chunks.length) {
+      const playAt = chunkStartMs[nextPlay];
+      if (elapsed < playAt) break;
+      const slot = nextPlay % 4;
+      send(new Uint8Array([141, slot]));
+      nextPlay++;
+    }
+
+    // 全チャンク再生完了
+    if (elapsed >= totalMs + 500) break;
   }
+
   stopPlay();
 }
 
