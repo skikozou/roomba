@@ -11,8 +11,6 @@
 
   :root {
     --bg: #0a0a0f;
-    --panel: #12121a;
-    --border: #1e1e2e;
     --accent: #00e5ff;
     --accent2: #ff3d71;
     --dim: #2a2a3a;
@@ -37,7 +35,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    gap: 12px;
+    gap: 10px;
   }
 
   .statusbar {
@@ -47,13 +45,11 @@
     justify-content: space-between;
     font-size: 11px;
     letter-spacing: 0.1em;
-    color: var(--text);
     opacity: 0.7;
   }
 
   .status-dot {
-    width: 7px;
-    height: 7px;
+    width: 7px; height: 7px;
     border-radius: 50%;
     background: var(--accent2);
     display: inline-block;
@@ -99,33 +95,23 @@
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
-
   .btn.active {
     background: var(--btn-active);
     border-color: var(--accent);
     transform: scale(0.95);
   }
-
   .btn svg {
-    width: 28px;
-    height: 28px;
-    stroke: var(--text);
-    fill: none;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    width: 28px; height: 28px;
+    stroke: var(--text); fill: none;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
     transition: stroke 0.1s;
   }
-
   .btn.active svg { stroke: var(--accent); }
-
   .btn.stop { border-color: var(--dim); }
   .btn.stop svg { stroke: var(--accent2); }
-  .btn.stop.active {
-    background: #ff3d7122;
-    border-color: var(--accent2);
-  }
+  .btn.stop.active { background: #ff3d7122; border-color: var(--accent2); }
 
+  /* サブコントロール行 */
   .subcontrols {
     display: flex;
     gap: 10px;
@@ -137,11 +123,11 @@
     background: var(--btn-bg);
     border: 1px solid var(--btn-border);
     border-radius: 10px;
-    padding: 12px 8px;
+    padding: 10px 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     cursor: pointer;
     font-family: 'Share Tech Mono', monospace;
     font-size: 10px;
@@ -152,28 +138,59 @@
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
-
-  .subbtn:active {
+  .subbtn:active, .subbtn.active {
     background: var(--btn-active);
     border-color: var(--accent);
     opacity: 1;
     transform: scale(0.97);
   }
-
   .subbtn svg {
-    width: 20px;
-    height: 20px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.8;
-    stroke-linecap: round;
+    width: 18px; height: 18px;
+    stroke: currentColor; fill: none;
+    stroke-width: 1.8; stroke-linecap: round;
+  }
+
+  /* 調整パネル */
+  .tuning-panel {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    width: min(360px, 94vw);
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .tuning-panel.open { display: flex; }
+
+  .tuning-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+  .tuning-row label {
+    flex: 0 0 120px;
+    color: var(--text);
+    opacity: 0.6;
+  }
+  .tuning-row input[type=range] {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .tuning-row .val {
+    flex: 0 0 44px;
+    text-align: right;
+    color: var(--accent);
+    font-size: 10px;
   }
 
   .log {
     width: min(360px, 94vw);
     font-size: 10px;
     letter-spacing: 0.05em;
-    color: var(--text);
     opacity: 0.4;
     text-align: center;
     overflow: hidden;
@@ -181,17 +198,39 @@
     text-overflow: ellipsis;
   }
 
+  /* グラフ */
+  .graphs {
+    display: none;
+    gap: 8px;
+    width: min(360px, 94vw);
+  }
+  .graphs.open { display: flex; }
+
+  .graph-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .graph-label {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    opacity: 0.5;
+    text-align: center;
+  }
+  .graph-wrap canvas {
+    width: 100%;
+    border-radius: 6px;
+    background: #0d0d14;
+    border: 1px solid var(--btn-border);
+    display: block;
+  }
+
   body::after {
     content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,0,0,0.07) 2px,
-      rgba(0,0,0,0.07) 4px
-    );
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px);
     pointer-events: none;
     z-index: 100;
   }
@@ -202,6 +241,7 @@
 <div class="statusbar">
   <div><span class="status-dot" id="dot"></span><span id="status-text">DISCONNECTED</span></div>
   <div>ROOMBA CTRL</div>
+  <a href="/sound.html" style="color:var(--text);text-decoration:none;font-size:10px;opacity:0.6;letter-spacing:0.06em;">SOUND →</a>
 </div>
 
 <div class="speed-bar-wrap">
@@ -243,6 +283,49 @@
     <svg id="mode-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
     <span id="mode-label">SAFE</span>
   </div>
+  <div class="subbtn" id="tuning-toggle-btn">
+    <svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="var(--bg)"/><circle cx="16" cy="12" r="2" fill="var(--bg)"/><circle cx="10" cy="18" r="2" fill="var(--bg)"/></svg>
+    TUNING
+  </div>
+</div>
+
+<div class="tuning-panel" id="tuning-panel">
+  <div class="tuning-row">
+    <label>MAX SPEED</label>
+    <input type="range" id="t-max-speed" min="50" max="500" step="10" value="300">
+    <span class="val" id="v-max-speed">300</span>
+  </div>
+  <div class="tuning-row">
+    <label>INITIAL SPEED</label>
+    <input type="range" id="t-init-speed" min="0" max="150" step="5" value="50">
+    <span class="val" id="v-init-speed">50</span>
+  </div>
+  <div class="tuning-row">
+    <label>ACCEL EASE</label>
+    <input type="range" id="t-accel-ease" min="0.05" max="0.8" step="0.05" value="0.35">
+    <span class="val" id="v-accel-ease">0.35</span>
+  </div>
+  <div class="tuning-row">
+    <label>DECEL MS</label>
+    <input type="range" id="t-decel-ms" min="50" max="1000" step="50" value="250">
+    <span class="val" id="v-decel-ms">250</span>
+  </div>
+  <div class="tuning-row">
+    <label>CURVE RATIO</label>
+    <input type="range" id="t-curve" min="0.0" max="1.0" step="0.05" value="0.25">
+    <span class="val" id="v-curve">0.25</span>
+  </div>
+</div>
+
+<div class="graphs" id="graphs">
+  <div class="graph-wrap">
+    <div class="graph-label">ACCEL</div>
+    <canvas id="canvas-accel" height="70"></canvas>
+  </div>
+  <div class="graph-wrap">
+    <div class="graph-label">DECEL</div>
+    <canvas id="canvas-decel" height="70"></canvas>
+  </div>
 </div>
 
 <div class="log" id="log">---</div>
@@ -258,16 +341,12 @@ function int16Bytes(v) {
   v = Math.max(-32768, Math.min(32767, Math.round(v)));
   return [(v >> 8) & 0xff, v & 0xff];
 }
-
 function driveDirect(right, left) {
   const [rh, rl] = int16Bytes(right);
   const [lh, ll] = int16Bytes(left);
   return new Uint8Array([OI_DRIVEDIRECT, rh, rl, lh, ll]);
 }
-
-function oiCmd(opcode) {
-  return new Uint8Array([opcode]);
-}
+function oiCmd(opcode) { return new Uint8Array([opcode]); }
 
 // ── WebSocket ────────────────────────────────────────
 const dot        = document.getElementById('dot');
@@ -279,17 +358,13 @@ let ws = null;
 let reconnectTimer = null;
 
 function setLog(msg) { logEl.textContent = msg; }
-
 function send(bytes) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(bytes);
-  }
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(bytes);
 }
 
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws`);
   ws.binaryType = 'arraybuffer';
-
   ws.onopen = () => {
     dot.classList.add('connected');
     statusText.textContent = 'CONNECTED';
@@ -298,59 +373,195 @@ function connect() {
     send(oiCmd(OI_START));
     setTimeout(() => send(oiCmd(OI_SAFE)), 100);
   };
-
   ws.onclose = () => {
     dot.classList.remove('connected');
     statusText.textContent = 'DISCONNECTED';
     setLog('reconnecting...');
     reconnectTimer = setTimeout(connect, 2000);
   };
-
   ws.onerror = () => ws.close();
 }
 
-// ── 速度・慣性制御 ───────────────────────────────────
-const MAX_SPEED   = 300;  // mm/s
-const CURVE_RATIO = 0.25;
-const TICK_MS     = 50;
-const DECEL_MS    = 250;
-
-const DECEL_STEP = MAX_SPEED / (DECEL_MS / TICK_MS);
-
-// 加速イージング：差の ACCEL_EASE 割合ずつ縮める（最初速く、MAX付近で緩やか）
-// 例: 差300→210→147→103→...と指数的に接近
-const ACCEL_EASE = 0.35;
-
-// 加速が実質止まるしきい値（ここからは線形で詰める）
-const ACCEL_SNAP = 5; // mm/s
-
-// コマンドごとのtarget速度ベクトル（MAX_SPEED基準）
-const CMD_VECS = {
-  forward:        [ 1,           1          ],
-  backward:       [-1,          -1          ],
-  left:           [ 1,          -1          ],
-  right:          [-1,           1          ],
-  forward_left:   [ 1,           CURVE_RATIO],
-  forward_right:  [ CURVE_RATIO, 1          ],
-  backward_left:  [-1,          -CURVE_RATIO],
-  backward_right: [-CURVE_RATIO,-1          ],
+// ── チューニングパラメータ ───────────────────────────
+const params = {
+  maxSpeed:    300,
+  initSpeed:   50,
+  accelEase:   0.35,
+  decelMs:     250,
+  curveRatio:  0.25,
 };
 
-// 現在の各輪の実速度
+const TICK_MS   = 50;
+const ACCEL_SNAP = 3;
+
+function getDecelStep() {
+  return params.maxSpeed / (params.decelMs / TICK_MS);
+}
+
+function getCmdVecs() {
+  const c = params.curveRatio;
+  return {
+    forward:        [ 1,  1],
+    backward:       [-1, -1],
+    left:           [ 1, -1],
+    right:          [-1,  1],
+    forward_left:   [ 1,  c],
+    forward_right:  [ c,  1],
+    backward_left:  [-1, -c],
+    backward_right: [-c, -1],
+  };
+}
+
+// チューニングUI
+const tuningDefs = [
+  { id: 't-max-speed',  val: 'v-max-speed',  key: 'maxSpeed',   fmt: v => Math.round(v) },
+  { id: 't-init-speed', val: 'v-init-speed', key: 'initSpeed',  fmt: v => Math.round(v) },
+  { id: 't-accel-ease', val: 'v-accel-ease', key: 'accelEase',  fmt: v => v.toFixed(2)  },
+  { id: 't-decel-ms',   val: 'v-decel-ms',   key: 'decelMs',    fmt: v => Math.round(v) },
+  { id: 't-curve',      val: 'v-curve',      key: 'curveRatio', fmt: v => v.toFixed(2)  },
+];
+
+tuningDefs.forEach(({ id, val, key, fmt }) => {
+  const input = document.getElementById(id);
+  const label = document.getElementById(val);
+  input.addEventListener('input', () => {
+    params[key] = parseFloat(input.value);
+    label.textContent = fmt(params[key]);
+    if (tuningOpen) updateGraphs();
+  });
+});
+
+// チューニングパネル開閉
+const tuningPanel     = document.getElementById('tuning-panel');
+const tuningToggleBtn = document.getElementById('tuning-toggle-btn');
+let tuningOpen = false;
+const graphs = document.getElementById('graphs');
+const canvasAccel = document.getElementById('canvas-accel');
+const canvasDecel = document.getElementById('canvas-decel');
+
+function drawGraph(canvas, points, color) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.offsetWidth || canvas.parentElement.offsetWidth;
+  const h = 70;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = { top: 6, right: 6, bottom: 18, left: 28 };
+  const gw = w - pad.left - pad.right;
+  const gh = h - pad.top - pad.bottom;
+
+  // グリッド
+  ctx.strokeStyle = '#1e1e2e';
+  ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75, 1.0].forEach(r => {
+    const y = pad.top + gh * (1 - r);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + gw, y);
+    ctx.stroke();
+  });
+
+  // 軸ラベル
+  ctx.fillStyle = '#4a4a6a';
+  ctx.font = `${8 * dpr / dpr}px Share Tech Mono, monospace`;
+  ctx.textAlign = 'right';
+  ctx.fillText('MAX', pad.left - 3, pad.top + 4);
+  ctx.fillText('0', pad.left - 3, pad.top + gh + 4);
+
+  // 時間軸ラベル（最後の時間）
+  const totalMs = points.length * 50;
+  ctx.textAlign = 'center';
+  ctx.fillText(`${totalMs}ms`, pad.left + gw, h - 4);
+
+  // 折れ線
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  points.forEach((v, i) => {
+    const x = pad.left + (i / (points.length - 1)) * gw;
+    const y = pad.top  + gh * (1 - v);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // 塗りつぶし
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + gh);
+  grad.addColorStop(0, color + '55');
+  grad.addColorStop(1, color + '00');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  points.forEach((v, i) => {
+    const x = pad.left + (i / (points.length - 1)) * gw;
+    const y = pad.top  + gh * (1 - v);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(pad.left + gw, pad.top + gh);
+  ctx.lineTo(pad.left,      pad.top + gh);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function simulateAccel() {
+  const pts = [];
+  let v = params.initSpeed / params.maxSpeed;
+  const snap = 3 / params.maxSpeed;
+  for (let i = 0; i < 60; i++) {
+    pts.push(Math.min(v, 1));
+    if (v >= 1) break;
+    const diff = 1 - v;
+    if (diff < snap) { v = 1; break; }
+    v += diff * params.accelEase;
+  }
+  pts.push(1);
+  return pts;
+}
+
+function simulateDecel() {
+  const pts = [];
+  const step = params.maxSpeed / (params.decelMs / 50) / params.maxSpeed;
+  let v = 1;
+  while (v > 0) {
+    pts.push(v);
+    v = Math.max(0, v - step);
+  }
+  pts.push(0);
+  return pts;
+}
+
+function updateGraphs() {
+  requestAnimationFrame(() => {
+    drawGraph(canvasAccel, simulateAccel(), '#00e5ff');
+    drawGraph(canvasDecel, simulateDecel(), '#ff3d71');
+  });
+}
+
+function toggleTuning(e) {
+  if (e) e.preventDefault();
+  tuningOpen = !tuningOpen;
+  tuningPanel.classList.toggle('open', tuningOpen);
+  tuningToggleBtn.classList.toggle('active', tuningOpen);
+  graphs.classList.toggle('open', tuningOpen);
+  if (tuningOpen) updateGraphs();
+}
+tuningToggleBtn.addEventListener('touchstart', toggleTuning, { passive: false });
+tuningToggleBtn.addEventListener('click', () => toggleTuning(null));
+
+// ── 速度・慣性制御 ───────────────────────────────────
 let currentRight = 0;
 let currentLeft  = 0;
 let currentCmd   = null;
 let loopTimer    = null;
 
-// 加速：指数イージング（最初速く終盤緩やか）
 function accelToward(current, target) {
   if (current === target) return target;
   const diff = target - current;
-  if (Math.abs(diff) < ACCEL_SNAP) return target; // snapして完了
-  return current + diff * ACCEL_EASE;
+  if (Math.abs(diff) < ACCEL_SNAP) return target;
+  return current + diff * params.accelEase;
 }
 
-// 減速：線形
 function decelToward(current, target, step) {
   if (current < target) return Math.min(current + step, target);
   if (current > target) return Math.max(current - step, target);
@@ -358,31 +569,30 @@ function decelToward(current, target, step) {
 }
 
 function updateSpeedBar(right, left, braking) {
-  const scale = Math.max(Math.abs(right), Math.abs(left)) / MAX_SPEED;
-  speedBar.style.width = `${scale * 100}%`;
+  const scale = Math.max(Math.abs(right), Math.abs(left)) / params.maxSpeed;
+  speedBar.style.width = `${Math.min(scale, 1) * 100}%`;
   speedBar.classList.toggle('braking', braking);
 }
 
 function startLoop() {
   if (loopTimer) return;
   loopTimer = setInterval(() => {
+    const vecs = getCmdVecs();
     let targetRight = 0;
     let targetLeft  = 0;
-
-    if (currentCmd) {
-      const [r, l] = CMD_VECS[currentCmd];
-      targetRight = r * MAX_SPEED;
-      targetLeft  = l * MAX_SPEED;
+    if (currentCmd && vecs[currentCmd]) {
+      const [r, l] = vecs[currentCmd];
+      targetRight = r * params.maxSpeed;
+      targetLeft  = l * params.maxSpeed;
     }
 
     if (currentCmd) {
-      // 加速：指数イージング（方向転換も0を経由して滑らか）
       currentRight = accelToward(currentRight, targetRight);
       currentLeft  = accelToward(currentLeft,  targetLeft);
     } else {
-      // 減速：線形
-      currentRight = decelToward(currentRight, 0, DECEL_STEP);
-      currentLeft  = decelToward(currentLeft,  0, DECEL_STEP);
+      const step = getDecelStep();
+      currentRight = decelToward(currentRight, 0, step);
+      currentLeft  = decelToward(currentLeft,  0, step);
     }
 
     send(driveDirect(currentRight, currentLeft));
@@ -404,25 +614,25 @@ function startLoop() {
 
 function pressCmd(cmd) {
   currentCmd = cmd;
+  const vecs = getCmdVecs();
+  const [r, l] = vecs[cmd];
+  // 目標と逆方向でなければ初速を付与
+  if (Math.sign(currentRight) !== -Math.sign(r)) currentRight = r * params.initSpeed;
+  if (Math.sign(currentLeft)  !== -Math.sign(l)) currentLeft  = l * params.initSpeed;
   startLoop();
 }
 
 function releaseCmd() {
   currentCmd = null;
-  // loopが動いていなければ即停止（速度0のまま離した場合）
-  if (!loopTimer) {
-    send(driveDirect(0, 0));
-  }
+  if (!loopTimer) send(driveDirect(0, 0));
 }
 
 // ── ボタンイベント ───────────────────────────────────
-Object.keys(CMD_VECS).forEach(cmd => {
+Object.keys(getCmdVecs()).forEach(cmd => {
   const btn = document.getElementById(`btn-${cmd}`);
   if (!btn) return;
-
   const onStart = (e) => { e.preventDefault(); btn.classList.add('active');    pressCmd(cmd); };
   const onEnd   = (e) => { e.preventDefault(); btn.classList.remove('active'); releaseCmd();  };
-
   btn.addEventListener('touchstart',  onStart, { passive: false });
   btn.addEventListener('touchend',    onEnd,   { passive: false });
   btn.addEventListener('touchcancel', onEnd,   { passive: false });
@@ -431,7 +641,7 @@ Object.keys(CMD_VECS).forEach(cmd => {
   btn.addEventListener('mouseleave',  onEnd);
 });
 
-// 停止ボタン（即停止）
+// 停止ボタン
 const stopBtn = document.getElementById('btn-stop');
 function hardStop(e) {
   if (e) e.preventDefault();
@@ -444,9 +654,9 @@ function hardStop(e) {
   updateSpeedBar(0, 0, false);
   setLog('stop');
 }
-stopBtn.addEventListener('touchstart', (e) => { hardStop(e); stopBtn.classList.add('active');    }, { passive: false });
+stopBtn.addEventListener('touchstart', (e) => { hardStop(e); stopBtn.classList.add('active'); },    { passive: false });
 stopBtn.addEventListener('touchend',   (e) => { e.preventDefault(); stopBtn.classList.remove('active'); }, { passive: false });
-stopBtn.addEventListener('mousedown',  (e) => { hardStop(e); stopBtn.classList.add('active');    });
+stopBtn.addEventListener('mousedown',  (e) => { hardStop(e); stopBtn.classList.add('active'); });
 stopBtn.addEventListener('mouseup',    ()  => stopBtn.classList.remove('active'));
 
 // Safe/Full トグル
@@ -466,7 +676,6 @@ function updateModeUI() {
     modeBtn.style.borderColor = 'var(--accent2)';
   }
 }
-
 function toggleMode(e) {
   if (e) e.preventDefault();
   isSafe = !isSafe;
@@ -474,9 +683,8 @@ function toggleMode(e) {
   send(oiCmd(isSafe ? OI_SAFE : OI_FULL));
   setLog(isSafe ? 'mode: safe' : 'mode: full');
 }
-
 modeBtn.addEventListener('touchstart', toggleMode, { passive: false });
-modeBtn.addEventListener('click',      () => toggleMode(null));
+modeBtn.addEventListener('click', () => toggleMode(null));
 
 connect();
 </script>

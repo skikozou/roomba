@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Roomba Sound</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --accent: #00e5ff; --accent2: #ff3d71; --accent3: #aaff00;
+    --dim: #1e1e2e; --text: #c8c8d8; --btn-bg: #161620; --btn-border: #2a2a40;
+  }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; }
+  body { display: flex; flex-direction: column; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; flex-shrink: 0; border-bottom: 1px solid var(--dim);
+    font-size: 11px; letter-spacing: 0.08em;
+  }
+  .topbar a { color: var(--text); text-decoration: none; opacity: 0.5; font-size: 10px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); display: inline-block; margin-right: 5px; }
+  .status-dot.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 14px; flex-shrink: 0; border-bottom: 1px solid var(--dim);
+  }
+  .tool-btn {
+    background: var(--btn-bg); border: 1px solid var(--btn-border);
+    border-radius: 6px; color: var(--text); font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 0.06em; padding: 5px 10px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: all 0.1s;
+  }
+  .tool-btn.danger { color: var(--accent2); }
+  .tool-btn.danger:active { background: #ff3d7122; border-color: var(--accent2); }
+  .tool-btn:active { transform: scale(0.96); }
+  .play-btn { background: var(--accent); border-color: var(--accent); color: #000; font-weight: bold; margin-left: auto; padding: 5px 16px; }
+  .play-btn.playing { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  .play-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+  .dur-select {
+    background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 6px;
+    color: var(--accent); font-family: 'Share Tech Mono', monospace; font-size: 10px;
+    padding: 5px 6px; cursor: pointer;
+  }
+
+  .roll-container { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .roll-main { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+
+  /* ピアノ鍵盤：タッチスクロールを自前で実装するためoverflow:hidden */
+  .piano-keys {
+    flex-shrink: 0; width: 40px; overflow: hidden; position: relative;
+    border-right: 1px solid var(--dim); touch-action: none;
+  }
+  .piano-keys canvas { display: block; }
+
+  /* グリッド：タッチ操作はすべて自前で処理 */
+  .grid-scroll {
+    flex: 1; overflow: hidden; position: relative;
+    scrollbar-width: none;
+  }
+  .grid-canvas-wrap { position: absolute; top: 0; left: 0; }
+  #grid-canvas { display: block; cursor: crosshair; touch-action: none; }
+
+  /* 横スクロールバー（下部固定） */
+  .hscroll-wrap { display: flex; flex-shrink: 0; border-top: 1px solid var(--dim); height: 32px; }
+  .hscroll-spacer { flex-shrink: 0; width: 40px; border-right: 1px solid var(--dim); }
+  .hscroll {
+    flex: 1; overflow-x: auto; overflow-y: hidden; height: 32px;
+    scrollbar-width: thin; scrollbar-color: var(--dim) transparent;
+    touch-action: pan-x; -webkit-overflow-scrolling: touch;
+  }
+  .hscroll::-webkit-scrollbar { height: 6px; }
+  .hscroll::-webkit-scrollbar-thumb { background: #3a3a54; border-radius: 3px; }
+  .hscroll::-webkit-scrollbar-track { background: transparent; }
+  .hscroll-inner { height: 1px; }
+
+  .progress-wrap { height: 2px; background: var(--dim); flex-shrink: 0; }
+  .progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.05s linear, background 0.2s; }
+  .progress-bar.playing { background: var(--accent3); }
+
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px);
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div><span class="status-dot" id="dot"></span><span id="status-text">DISCONNECTED</span></div>
+  <div style="letter-spacing:0.12em">PIANO ROLL</div>
+  <a href="/">← CTRL</a>
+</div>
+
+<div class="toolbar">
+  <span style="font-size:10px;opacity:0.5;">DUR</span>
+  <select class="dur-select" id="dur-select">
+    <option value="4">1/16</option>
+    <option value="8">1/8</option>
+    <option value="16" selected>1/4</option>
+    <option value="32">1/2</option>
+    <option value="64">1</option>
+  </select>
+  <button class="tool-btn" id="import-btn">IMPORT</button>
+  <input type="file" id="import-input" accept=".txt" style="display:none">
+  <button class="tool-btn" id="export-btn">EXPORT</button>
+  <button class="tool-btn danger" id="clear-btn">CLEAR</button>
+  <button class="tool-btn play-btn" id="play-btn" disabled>PLAY</button>
+</div>
+
+<div class="roll-container">
+  <div class="roll-main">
+    <div class="piano-keys" id="piano-keys">
+      <canvas id="keys-canvas"></canvas>
+    </div>
+    <div class="grid-scroll" id="grid-scroll">
+      <div class="grid-canvas-wrap" id="grid-wrap">
+        <canvas id="grid-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="hscroll-wrap">
+    <div class="hscroll-spacer"></div>
+    <div class="hscroll" id="hscroll">
+      <div class="hscroll-inner" id="hscroll-inner"></div>
+    </div>
+  </div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-bar" id="progress-bar"></div>
+</div>
+
+<script>
+// ── 定数 ──────────────────────────────────────────────
+const NOTE_MIN    = 31;
+const NOTE_MAX    = 96;
+const NOTE_RANGE  = NOTE_MAX - NOTE_MIN + 1;
+const ROW_H       = 14;
+const TICK_W      = 4;
+const GRID_MIN_TICKS = 256;
+const GRID_PAD_TICKS = 64;
+const NOTE_NAMES  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const IS_BLACK    = [0,1,0,1,0,0,1,0,1,0,1,0];
+
+function midiToName(n) { return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1); }
+function isBlack(n)    { return IS_BLACK[n % 12] === 1; }
+
+// ── ビューポート状態 ──────────────────────────────────
+// スクロール位置はJSで管理（CSSスクロールに依存しない）
+let scrollX = 0; // 横スクロール（ticks換算ではなくpx）
+let scrollY = 0; // 縦スクロール（px）
+
+// ── ノートデータ ──────────────────────────────────────
+let notes = [];      // [{note, tick, dur}]
+let playheadTick = 0;
+let isPlaying = false;
+
+function totalTicks() { return notes.reduce((m, n) => Math.max(m, n.tick + n.dur), 0); }
+function getGridTicks() { return Math.max(GRID_MIN_TICKS, totalTicks() + GRID_PAD_TICKS); }
+
+// ── DOM参照 ───────────────────────────────────────────
+const keysCanvas = document.getElementById('keys-canvas');
+const gridCanvas = document.getElementById('grid-canvas');
+const keysCtx    = keysCanvas.getContext('2d');
+const gridCtx    = gridCanvas.getContext('2d');
+const gridScroll = document.getElementById('grid-scroll');
+const gridWrap   = document.getElementById('grid-wrap');
+const pianoKeys  = document.getElementById('piano-keys');
+const hscroll    = document.getElementById('hscroll');
+const hscrollInner = document.getElementById('hscroll-inner');
+const progressBar = document.getElementById('progress-bar');
+const playBtn    = document.getElementById('play-btn');
+
+// ── 座標変換 ──────────────────────────────────────────
+function noteToY(note) { return (NOTE_MAX - note) * ROW_H; }
+function yToNote(y)    { return NOTE_MAX - Math.floor(y / ROW_H); }
+function tickToX(tick) { return tick * TICK_W; }
+function xToTick(x)    { return Math.floor(x / TICK_W); }
+
+// ── 初期化 ────────────────────────────────────────────
+function initCanvases() {
+  const dpr   = window.devicePixelRatio || 1;
+  const rollH = NOTE_RANGE * ROW_H;
+  const gridW = getGridTicks() * TICK_W;
+  const viewW = gridScroll.clientWidth;
+  const viewH = gridScroll.clientHeight;
+
+  // ピアノ鍵盤canvas
+  keysCanvas.style.width  = '40px';
+  keysCanvas.style.height = rollH + 'px';
+  keysCanvas.width  = Math.round(40 * dpr);
+  keysCanvas.height = Math.round(rollH * dpr);
+  keysCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // グリッドcanvas（仮想スクロール：canvas物理サイズは表示領域に限定）
+  initGridCanvas();
+  gridWrap.style.height = rollH + 'px';
+  updateHscrollWidth();
+
+  // 初回のみ初期スクロール設定（import後など既に設定済みの場合はそのまま）
+  if (!initCanvases._initialized) {
+    scrollY = Math.max(0, Math.min(noteToY(60) - viewH / 2, rollH - viewH));
+    scrollX = 0;
+    initCanvases._initialized = true;
+  }
+  // スクロール範囲をクランプ
+  scrollY = Math.max(0, Math.min(scrollY, rollH - viewH));
+  scrollX = Math.max(0, Math.min(scrollX, Math.max(0, Math.max(getGridTicks() * TICK_W, viewW) - viewW)));
+
+  applyScroll();
+  drawKeys();
+  drawGrid();
+}
+
+function applyScroll() {
+  // 縦方向のみtransform（横は描画オフセットで処理）
+  gridWrap.style.transform = `translateY(${-scrollY}px)`;
+  // ピアノ鍵盤を縦スクロールに追従
+  keysCanvas.style.marginTop = -scrollY + 'px';
+  // hscrollバーを同期
+  hscroll.scrollLeft = scrollX;
+}
+
+// hscrollバーの操作でscrollXを更新
+hscroll.addEventListener('scroll', () => {
+  scrollX = hscroll.scrollLeft;
+  drawGrid(); // 仮想スクロールなので再描画
+});
+
+// ウィンドウリサイズ
+window.addEventListener('resize', initCanvases);
+
+// ── 描画：ピアノ鍵盤 ──────────────────────────────────
+function drawKeys() {
+  const ctx = keysCtx;
+  ctx.clearRect(0, 0, 40, NOTE_RANGE * ROW_H);
+  for (let n = NOTE_MAX; n >= NOTE_MIN; n--) {
+    const y = noteToY(n);
+    ctx.fillStyle = isBlack(n) ? '#1a1a2a' : '#252535';
+    ctx.fillRect(0, y, 40, ROW_H - 1);
+    if (n % 12 === 0) {
+      ctx.fillStyle = '#5a5a7a';
+      ctx.font = '8px Share Tech Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(midiToName(n), 37, y + ROW_H - 3);
+    }
+    ctx.fillStyle = '#141420';
+    ctx.fillRect(0, y + ROW_H - 1, 40, 1);
+  }
+}
+
+// ── 描画：グリッド + ノート ───────────────────────────
+// canvasの論理サイズ（px）を追跡（widthプロパティ変更でコンテキストがリセットされるため）
+let gridCanvasLogicalW = 0;
+
+// canvas物理サイズは表示領域に限定（仮想スクロール）
+// hscroll-innerの幅だけ論理的な全体幅を表す
+const MAX_CANVAS_W = 4096; // ブラウザ制限を避けるための上限
+
+function updateHscrollWidth() {
+  const total = Math.max(getGridTicks() * TICK_W, gridScroll.clientWidth);
+  hscrollInner.style.width = total + 'px';
+  gridWrap.style.width = total + 'px';
+}
+
+function initGridCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const viewW = gridScroll.clientWidth;
+  const viewH = gridScroll.clientHeight;
+  // canvasは表示領域のみ（仮想スクロールで描画オフセットを使う）
+  const cw = Math.min(viewW + 256, MAX_CANVAS_W); // 少し余裕を持たせる
+  gridCanvasLogicalW = cw;
+  gridCanvas.style.width  = cw + 'px';
+  gridCanvas.style.height = (NOTE_RANGE * ROW_H) + 'px';
+  gridCanvas.width  = Math.round(cw * dpr);
+  gridCanvas.height = Math.round(NOTE_RANGE * ROW_H * dpr);
+  gridCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+let drawGridRaf = null;
+function drawGrid() {
+  if (drawGridRaf) return;
+  drawGridRaf = requestAnimationFrame(_drawGrid);
+}
+function _drawGrid() {
+  drawGridRaf = null;
+  const ctx     = gridCtx;
+  const canvasW = gridCanvasLogicalW;
+  const canvasH = NOTE_RANGE * ROW_H;
+  // 描画はscrollXオフセット分ずらす（仮想スクロール）
+  const ox = scrollX; // x描画オフセット
+
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  // 行背景
+  for (let n = NOTE_MAX; n >= NOTE_MIN; n--) {
+    const y = noteToY(n);
+    ctx.fillStyle = isBlack(n) ? '#0e0e18' : '#12121e';
+    ctx.fillRect(0, y, canvasW, ROW_H - 1);
+    ctx.fillStyle = '#1a1a28';
+    ctx.fillRect(0, y + ROW_H - 1, canvasW, 1);
+    if (n % 12 === 0) { ctx.fillStyle = '#252538'; ctx.fillRect(0, y, canvasW, 1); }
+  }
+
+  // 縦グリッド線（表示範囲のみ）
+  const startT = Math.floor(ox / TICK_W / 16) * 16;
+  const endT   = Math.ceil((ox + canvasW) / TICK_W / 16) * 16;
+  for (let t = startT; t <= endT; t += 16) {
+    const x = tickToX(t) - ox;
+    if (x < 0 || x > canvasW) continue;
+    ctx.fillStyle = t % 64 === 0 ? '#28283c' : '#1c1c2c';
+    ctx.fillRect(x, 0, 1, canvasH);
+  }
+
+  // ノート（表示範囲のみ）
+  const visStartTick = xToTick(ox);
+  const visEndTick   = xToTick(ox + canvasW) + 1;
+  notes.forEach(n => {
+    if (n.note < NOTE_MIN || n.note > NOTE_MAX) return;
+    if (n.tick + n.dur < visStartTick || n.tick > visEndTick) return; // 範囲外スキップ
+    const x = tickToX(n.tick) - ox;
+    const y = noteToY(n.note);
+    const w = Math.max(n.dur * TICK_W - 1, 2);
+    ctx.fillStyle = '#00e5ff';
+    ctx.beginPath();
+    ctx.roundRect(x, y + 1, w, ROW_H - 3, 2);
+    ctx.fill();
+    if (w > 20) {
+      ctx.fillStyle = '#003a44';
+      ctx.font = '8px Share Tech Mono, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(midiToName(n.note), x + 3, y + ROW_H - 4);
+    }
+  });
+
+  // 再生ヘッド
+  if (isPlaying) {
+    const hx = tickToX(playheadTick) - ox;
+    if (hx >= 0 && hx <= canvasW) {
+      ctx.fillStyle = 'rgba(170,255,0,0.7)';
+      ctx.fillRect(hx, 0, 2, canvasH);
+    }
+  }
+}
+
+// ── ノート操作 ────────────────────────────────────────
+let dragNote = null;
+let dragMode = null;
+let dragStartX = 0;
+let dragStartTick = 0;
+
+function getDurTicks() { return parseInt(document.getElementById('dur-select').value); }
+function snapTick(tick) { const d = getDurTicks(); return Math.floor(tick / d) * d; }
+
+function findNoteAtPos(note, tick) {
+  return notes.find(n => n.note === note && tick >= n.tick && tick < n.tick + n.dur);
+}
+function findOverlapping(tick, dur, exclude) {
+  return notes.filter(n => n !== exclude && tick < n.tick + n.dur && tick + dur > n.tick);
+}
+
+// canvas上の座標→グリッド座標
+function getGridPos(clientX, clientY) {
+  const rect = gridScroll.getBoundingClientRect();
+  return {
+    x: clientX - rect.left + scrollX,
+    y: clientY - rect.top  + scrollY,
+  };
+}
+
+function pointerDown(clientX, clientY) {
+  if (isPlaying) return;
+  const { x, y } = getGridPos(clientX, clientY);
+  const note = yToNote(y);
+  const tick = xToTick(x);
+  if (note < NOTE_MIN || note > NOTE_MAX) return;
+
+  const existing = findNoteAtPos(note, tick);
+  if (existing) {
+    const endX = tickToX(existing.tick + existing.dur);
+    if (x >= endX - 10) {
+      dragMode = 'resize'; dragNote = existing;
+      dragStartX = x; dragStartTick = existing.dur;
+    } else {
+      notes = notes.filter(n => n !== existing);
+      drawGrid(); updatePlayBtn();
+    }
+    return;
+  }
+
+  const snapped = snapTick(tick);
+  const dur = getDurTicks();
+  if (findOverlapping(snapped, dur, null).length > 0) return;
+  const newNote = { note, tick: snapped, dur };
+  notes.push(newNote);
+  dragMode = 'resize'; dragNote = newNote;
+  dragStartX = x; dragStartTick = dur;
+  drawGrid(); updatePlayBtn();
+}
+
+function pointerMove(clientX) {
+  if (!dragNote || dragMode !== 'resize') return;
+  const { x } = getGridPos(clientX, 0);
+  const snapUnit = getDurTicks();
+  const rawEnd = xToTick(x);
+  const snappedEnd = Math.max(dragNote.tick + snapUnit, Math.round(rawEnd / snapUnit) * snapUnit);
+  const desired = snappedEnd - dragNote.tick;
+  const next = notes
+    .filter(n => n !== dragNote && n.tick >= dragNote.tick + 1)
+    .sort((a, b) => a.tick - b.tick)[0];
+  const maxDur = next ? Math.floor((next.tick - dragNote.tick) / snapUnit) * snapUnit : desired;
+  dragNote.dur = Math.max(snapUnit, Math.min(desired, maxDur));
+  drawGrid();
+}
+
+function pointerUp() { dragNote = null; dragMode = null; }
+
+// マウスイベント
+gridCanvas.addEventListener('mousedown', e => { e.preventDefault(); pointerDown(e.clientX, e.clientY); });
+gridCanvas.addEventListener('mousemove', e => { if (dragNote) pointerMove(e.clientX); });
+document.addEventListener('mouseup', pointerUp);
+
+// ── タッチ操作（グリッド） ───────────────────────────
+// グリッド上のタッチはすべてノート操作
+// スクロールはhscrollバー（横）・鍵盤エリア（縦）のみ
+const LONG_PRESS_MS = 400;
+let tStartX = 0, tStartY = 0;
+let tLongPressTimer = null;
+let tLongPressActive = false; // 長押し配置モード中
+let tLastNote = null;         // 長押しで直前に配置したノート（連続配置用）
+
+function cancelLongPress() {
+  if (tLongPressTimer) { clearTimeout(tLongPressTimer); tLongPressTimer = null; }
+}
+
+gridCanvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  tStartX = t.clientX; tStartY = t.clientY;
+  tLongPressActive = false;
+  tLastNote = null;
+
+  // 長押しタイマー開始
+  tLongPressTimer = setTimeout(() => {
+    tLongPressTimer = null;
+    tLongPressActive = true;
+    // 長押し開始位置にノートを配置
+    placeLongPressNote(tStartX, tStartY);
+  }, LONG_PRESS_MS);
+}, { passive: false });
+
+gridCanvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+
+  if (tLongPressActive) {
+    // 長押しモード：指を動かした先に連続配置
+    placeLongPressNote(t.clientX, t.clientY);
+    return;
+  }
+
+  // 移動があれば長押しキャンセル
+  const dx = Math.abs(t.clientX - tStartX);
+  const dy = Math.abs(t.clientY - tStartY);
+  if (dx > 4 || dy > 4) cancelLongPress();
+
+  // ドラッグ中ならリサイズ
+  if (dragNote) pointerMove(t.clientX);
+}, { passive: false });
+
+gridCanvas.addEventListener('touchend', e => {
+  cancelLongPress();
+  if (tLongPressActive) {
+    // 長押しモード終了
+    tLongPressActive = false;
+    tLastNote = null;
+    pointerUp();
+  } else {
+    // タップ → ノート追加/削除
+    pointerDown(tStartX, tStartY);
+    pointerUp();
+  }
+}, { passive: true });
+
+gridCanvas.addEventListener('touchcancel', e => {
+  cancelLongPress();
+  tLongPressActive = false;
+  tLastNote = null;
+  pointerUp();
+}, { passive: true });
+
+// 長押し連続配置：指の位置のtickにノートを置く（既にある場所はスキップ）
+function placeLongPressNote(clientX, clientY) {
+  if (isPlaying) return;
+  const { x, y } = getGridPos(clientX, clientY);
+  const note = yToNote(y);
+  const tick = snapTick(xToTick(x));
+  const dur  = getDurTicks();
+  if (note < NOTE_MIN || note > NOTE_MAX) return;
+
+  // 直前と同じtickなら何もしない（移動していない）
+  if (tLastNote && tLastNote.tick === tick && tLastNote.note === note) return;
+
+  // 重なりがあれば配置しない
+  if (findOverlapping(tick, dur, null).length > 0) return;
+
+  const newNote = { note, tick, dur };
+  notes.push(newNote);
+  tLastNote = newNote;
+  drawGrid();
+  updatePlayBtn();
+}
+
+// 鍵盤エリアの縦スクロール
+let keysTouchY = 0;
+pianoKeys.addEventListener('touchstart', e => {
+  keysTouchY = e.touches[0].clientY;
+}, { passive: true });
+pianoKeys.addEventListener('touchmove', e => {
+  const rollH = NOTE_RANGE * ROW_H;
+  const delta = keysTouchY - e.touches[0].clientY;
+  scrollY = Math.max(0, Math.min(scrollY + delta, rollH - gridScroll.clientHeight));
+  keysTouchY = e.touches[0].clientY;
+  applyScroll();
+}, { passive: true });
+
+// ── IMPORT ────────────────────────────────────────────
+document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-input').click());
+document.getElementById('import-input').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const parsed = parseNoteText(ev.target.result);
+    if (!parsed.length) { alert('有効なノートデータが見つかりませんでした'); return; }
+    notes = parsed;
+    scrollX = 0;
+    scrollY = Math.max(0, Math.min(noteToY(60) - gridScroll.clientHeight / 2, NOTE_RANGE * ROW_H - gridScroll.clientHeight));
+    // notesセット後にinitCanvasesで正しいサイズで初期化してから描画
+    initCanvases();
+    updatePlayBtn();
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function parseNoteText(text) {
+  const nums = text.replace(/[\[\],]/g, ' ').split(/\s+/).map(s => s.trim())
+    .filter(Boolean).map(Number).filter(n => !isNaN(n));
+  if (nums.length % 2 !== 0) nums.pop();
+  const result = []; let tick = 0;
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    const midi = nums[i], dur = nums[i + 1];
+    if (dur <= 0) continue;
+    if (midi >= NOTE_MIN && midi <= NOTE_MAX) result.push({ note: midi, tick, dur });
+    tick += dur;
+  }
+  return result;
+}
+
+// ── EXPORT ────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  if (!notes.length) return;
+  const sorted = [...notes].sort((a, b) => a.tick - b.tick);
+  const tokens = []; let cursor = 0;
+  sorted.forEach(n => {
+    let gap = n.tick - cursor;
+    while (gap > 0) { const d = Math.min(gap, 255); tokens.push(0, d); gap -= d; }
+    let rem = n.dur;
+    while (rem > 0) { const d = Math.min(rem, 255); tokens.push(n.note, d); rem -= d; }
+    cursor = n.tick + n.dur;
+  });
+  const blob = new Blob([tokens.join(' ')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'song.txt'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ── CLEAR ─────────────────────────────────────────────
+document.getElementById('clear-btn').addEventListener('click', () => {
+  if (isPlaying) return;
+  notes = []; drawGrid(); updatePlayBtn();
+});
+
+// ── WebSocket ─────────────────────────────────────────
+const dot = document.getElementById('dot');
+const statusText = document.getElementById('status-text');
+let ws = null, wsReady = false, reconnectTimer = null;
+
+function send(bytes) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(bytes); }
+
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => {
+    dot.classList.add('connected'); statusText.textContent = 'CONNECTED';
+    wsReady = true; clearTimeout(reconnectTimer);
+    send(new Uint8Array([128]));
+    setTimeout(() => send(new Uint8Array([131])), 100);
+    updatePlayBtn();
+  };
+  ws.onclose = () => {
+    dot.classList.remove('connected'); statusText.textContent = 'DISCONNECTED';
+    wsReady = false; updatePlayBtn();
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
+}
+
+// ── 再生 ──────────────────────────────────────────────
+function updatePlayBtn() { playBtn.disabled = !notes.length || !wsReady || isPlaying; }
+
+function buildSongCmd(slot, noteList) {
+  const p = [140, slot, noteList.length];
+  noteList.forEach(n => p.push(n.note, n.dur));
+  return new Uint8Array(p);
+}
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function playSong() {
+  if (isPlaying || !notes.length) return;
+  const sorted = [...notes].sort((a, b) => a.tick - b.tick);
+  const total = totalTicks();
+  const seq = []; let cursor = 0;
+  sorted.forEach(n => {
+    let gap = n.tick - cursor;
+    while (gap > 0) { const d = Math.min(gap, 255); seq.push({ note: 0, dur: d }); gap -= d; }
+    let rem = n.dur;
+    while (rem > 0) { const d = Math.min(rem, 255); seq.push({ note: n.note, dur: d }); rem -= d; }
+    cursor = n.tick + n.dur;
+  });
+  if (!seq.length) return;
+
+  const chunks = [];
+  for (let i = 0; i < seq.length; i += 16) chunks.push(seq.slice(i, i + 16));
+
+  isPlaying = true;
+  playBtn.classList.add('playing'); playBtn.textContent = 'STOP'; playBtn.disabled = false;
+  progressBar.classList.add('playing');
+
+  let elapsed = 0;
+  const STEP_MS = 50;
+  const PREFETCH_MS = 200; // 残り時間がこれ以下になったら次チャンクを先読み定義
+
+  // 最初のチャンクを定義してすぐ再生
+  if (chunks.length > 0) {
+    send(buildSongCmd(0, chunks[0]));
+    await sleep(10);
+    send(new Uint8Array([141, 0]));
+  }
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (!isPlaying) break;
+    const chunkTicks = chunks[i].reduce((s, n) => s + n.dur, 0);
+    const chunkMs    = (chunkTicks / 64) * 1000;
+    const steps      = Math.ceil(chunkMs / STEP_MS);
+    let prefetched   = false;
+
+    for (let s = 0; s < steps; s++) {
+      if (!isPlaying) break;
+      await sleep(STEP_MS);
+      elapsed += (STEP_MS / 1000) * 64;
+      playheadTick = elapsed;
+      progressBar.style.width = `${Math.min(elapsed / total, 1) * 100}%`;
+      drawGrid();
+      // 再生ヘッドに追従
+      const headX = tickToX(playheadTick);
+      const vw = gridScroll.clientWidth;
+      if (headX - scrollX > vw * 0.8) {
+        scrollX = headX - vw * 0.2;
+        applyScroll();
+      }
+      // 残り時間がPREFETCH_MS以下になったら次チャンクを先読み定義
+      if (!prefetched && i + 1 < chunks.length) {
+        const remaining = (steps - s - 1) * STEP_MS;
+        if (remaining <= PREFETCH_MS) {
+          prefetched = true;
+          const nextSlot = (i + 1) % 4;
+          send(buildSongCmd(nextSlot, chunks[i + 1]));
+        }
+      }
+    }
+
+    // 次チャンクを再生（定義済みのスロット）
+    if (isPlaying && i + 1 < chunks.length) {
+      const nextSlot = (i + 1) % 4;
+      if (!prefetched) {
+        // 先読みできなかった場合は今定義してすぐ再生
+        send(buildSongCmd(nextSlot, chunks[i + 1]));
+        await sleep(10);
+      }
+      send(new Uint8Array([141, nextSlot]));
+    }
+  }
+  stopPlay();
+}
+
+function stopPlay() {
+  isPlaying = false; playheadTick = 0;
+  playBtn.classList.remove('playing'); playBtn.textContent = 'PLAY';
+  progressBar.classList.remove('playing'); progressBar.style.width = '0%';
+  drawGrid(); updatePlayBtn();
+}
+
+playBtn.addEventListener('click', () => { if (isPlaying) stopPlay(); else playSong(); });
+
+// ── 起動 ──────────────────────────────────────────────
+initCanvases();
+connect();
+</script>
+</body>
+</html>
